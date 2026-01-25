@@ -62,9 +62,11 @@ def main():
     parser = argparse.ArgumentParser(
         description="Finds orphan attachments in an Obsidian vault."
     )
-    parser.add_argument("vault", nargs="?", help="Location of the Obsidian vault")
+    parser.add_argument("--vault", help="Location of the Obsidian vault")
+    parser.add_argument("--destructive", action="store_true", help="Delete orphan attachments")
 
     args = parser.parse_args()
+    print(args)
 
     if args.vault is None:
         print("Please provide a valid Obsidian vault\n")
@@ -73,8 +75,12 @@ def main():
 
     # current_directory = os.getcwd()  # Get the current working directory
     vault = args.vault
+    vault = vault.strip('"').strip("'")
+    
+    vault = os.path.normpath(vault)
 
     obsidian_dir = os.path.join(vault, ".obsidian")
+    
 
     # check if there is a vault
     if not (os.path.exists(obsidian_dir) and os.path.isdir(obsidian_dir)):
@@ -84,11 +90,35 @@ def main():
     link_targets = find_linked_attachments(vault, FILETYPES)
 
     image_paths = find_files(vault, FILETYPES)
+
+    to_delete = []
     for image_path in image_paths:
-        image_filename = image_path.split("/")[-1]
+        
+        sep = '/'  # default to unix style
+        if os.name == "nt":
+            sep = "\\"  # windows style
+        image_filename = image_path.split(sep)[-1]
+        
         if image_filename not in link_targets and "attachments" in image_path:
             print(image_path)
+            to_delete.append(image_path)
 
+    n_to_delete = len(to_delete)
+    print(f"Found {n_to_delete} orphan attachments.")
+
+    if args.destructive and n_to_delete > 0:
+        f"Deleting {len(to_delete)} orphan attachments..."
+        # get user confirmation
+        confirm = input("Are you sure you want to delete these files? (y/n): ")
+        if confirm.lower() == "y":
+            for file_path in to_delete:
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        else:
+            print("Deletion cancelled by user.")
 
 if __name__ == "__main__":
     main()
